@@ -21,10 +21,14 @@ import (
 )
 
 func Clone(repoUrl string, revision string, destDir string) error {
+	terminalSpinner.Start()
+	defer func() {
+		terminalSpinner.Stop()
+	}()
+
 	err := GitClone(repoUrl, revision, destDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return fmt.Errorf("Failed to clone repo %v to destination %v", repoUrl, destDir)
+		return err
 	}
 
 	return nil
@@ -33,14 +37,12 @@ func Clone(repoUrl string, revision string, destDir string) error {
 func CheckoutByTag(repoDir string, tag string) error {
 	repo, err := GitOpenRepository(repoDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return fmt.Errorf("Failed to open repo at %v", repoDir)
+		return err
 	}
 
 	err = GitCheckoutByTag(repo, tag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return fmt.Errorf("Failed to check out tag %v from repo %v", tag, repoDir)
+		return err
 	}
 
 	return nil
@@ -75,20 +77,18 @@ var cloneCmd = &cobra.Command{
 		for _, pkg := range manifest.Packages {
 			repoDir := outputDir + pkg.Name
 			fmt.Printf("INFO: Cloning package %v from %v to %v\n", pkg.Name, pkg.Repo, repoDir)
-			terminalSpinner.Start()
 			err = Clone(pkg.Repo, pkg.Revision, repoDir)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-				ExitCode = 1
-				return
+				fmt.Fprintf(os.Stderr, "WARNING: %v\n", err)
 			}
-			CheckoutByTag(repoDir, pkg.Tag)
+			fmt.Printf("INFO: Attempting to checkout tag %v from repository directory %v\n", pkg.Tag, repoDir)
+			err = CheckoutByTag(repoDir, pkg.Tag)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 				ExitCode = 1
 				return
 			}
-			terminalSpinner.Stop()
+			fmt.Printf("INFO: Checked out tag %v from repository directory %v\n", pkg.Tag, repoDir)
 		}
 
 		ExitCode = 0
